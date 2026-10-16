@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Video Site Builder</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #06060a; color: #eaeaf2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid rgba(255,255,255,.08);
+    background: rgba(12,12,18,.85); backdrop-filter: blur(20px); z-index: 10;
+  }
+  .logo { font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 13px;
+    background: linear-gradient(90deg, #b9c0ff, #ffb9ec);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .actions { display: flex; gap: 8px; }
+  button { border: none; cursor: pointer; font-family: inherit; font-size: 13px;
+    padding: 9px 16px; border-radius: 9px; font-weight: 600; transition: all .15s; }
+  .ghost { background: rgba(255,255,255,.06); color: #eaeaf2; border: 1px solid rgba(255,255,255,.1); }
+  .ghost:hover { background: rgba(255,255,255,.1); }
+  .primary { background: linear-gradient(135deg, #5865F2, #8b5cf6 50%, #EB459E); color: #fff;
+    box-shadow: 0 6px 20px rgba(88,101,242,.35); }
+  .primary:hover { transform: translateY(-1px); }
+  .layout { flex: 1; display: grid; grid-template-columns: 200px 1fr 240px; min-height: 0; }
+  .palette, .inspector { background: rgba(12,12,18,.7); overflow-y: auto; padding: 16px 14px; }
+  .palette { border-right: 1px solid rgba(255,255,255,.06); }
+  .inspector { border-left: 1px solid rgba(255,255,255,.06); }
+  .palette h3, .inspector h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+    color: #8a8aa0; margin: 0 0 12px; }
+  .block { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 9px; padding: 11px 12px; margin-bottom: 7px;
+    font-size: 13px; cursor: grab; transition: all .15s; user-select: none; }
+  .block:hover { background: rgba(88,101,242,.15); border-color: rgba(88,101,242,.5); transform: translateX(2px); }
+  .canvas-wrap { overflow-y: auto; padding: 22px; }
+  .canvas { min-height: 100%; border: 1px dashed rgba(255,255,255,.1); border-radius: 14px;
+    padding: 18px; position: relative; background: rgba(12,12,18,.4); transition: border-color .2s, background .2s; }
+  .canvas.dragover { border-color: rgba(88,101,242,.7); background: rgba(88,101,242,.06); }
+  .empty { text-align: center; color: #55556a; font-size: 13px; padding: 60px 0; letter-spacing: .05em; }
+  .canvas .node { position: relative; border: 1px solid transparent; border-radius: 8px;
+    padding: 10px; margin-bottom: 8px; transition: border-color .15s, background .15s; cursor: pointer; }
+  .canvas .node:hover { border-color: rgba(255,255,255,.12); }
+  .canvas .node.selected { border-color: rgba(88,101,242,.8); background: rgba(88,101,242,.08); }
+  .node .node-label { position: absolute; top: -9px; left: 8px; font-size: 9px;
+    background: #5865F2; color: #fff; padding: 2px 6px; border-radius: 4px;
+    letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+  .node .del { position: absolute; top: 4px; right: 6px; font-size: 11px;
+    background: rgba(237,66,69,.2); color: #ED4245; border: none;
+    width: 20px; height: 20px; border-radius: 5px; cursor: pointer; display: none; }
+  .node:hover .del { display: block; }
+  .node h1 { margin: 0; font-size: 22px; }
+  .node p { margin: 0; color: #b5b5c5; font-size: 14px; line-height: 1.5; }
+  .node img, .node video { max-width: 100%; border-radius: 8px; display: block; }
+  .node .btn-mock { display: inline-block; padding: 10px 18px; border-radius: 8px;
+    background: linear-gradient(135deg, #5865F2, #EB459E); color: #fff; font-weight: 600; font-size: 14px; }
+  .node.hero { padding: 22px; text-align: center; }
+  .inspector .field { margin-bottom: 12px; }
+  .inspector label { display: block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: .1em; color: #8a8aa0; margin-bottom: 5px; font-weight: 600; }
+  .inspector input, .inspector textarea, .inspector select {
+    width: 100%; background: rgba(8,8,12,.8); border: 1px solid rgba(255,255,255,.1);
+    color: #eaeaf2; padding: 9px 10px; border-radius: 8px; font-size: 13px;
+    font-family: inherit; outline: none; }
+  .inspector textarea { min-height: 70px; resize: vertical; }
+  .inspector input:focus, .inspector textarea:focus, .inspector select:focus {
+    border-color: rgba(88,101,242,.7); box-shadow: 0 0 0 3px rgba(88,101,242,.15); }
+  .muted { color: #55556a; font-size: 12px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.75);
+    backdrop-filter: blur(6px); display: none; z-index: 100;
+    align-items: center; justify-content: center; padding: 30px; }
+  .modal.show { display: flex; }
+  .modal-inner { width: 100%; height: 100%; max-width: 1200px;
+    background: #fff; border-radius: 14px; overflow: hidden; position: relative; }
+  .modal-close { position: absolute; top: 10px; right: 10px; z-index: 2;
+    background: rgba(0,0,0,.6); color: #fff; width: 34px; height: 34px;
+    border-radius: 50%; font-size: 20px; line-height: 1; }
+  #previewFrame { width: 100%; height: 100%; border: none; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 140px 1fr; }
+    .inspector { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo">◆ builder</div>
+  <div class="actions">
+    <button id="previewBtn" class="ghost">Preview</button>
+    <button id="exportBtn" class="primary">Export HTML</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="palette">
+    <h3>blocks</h3>
+    <div class="block" draggable="true" data-type="hero">Hero</div>
+    <div class="block" draggable="true" data-type="heading">Heading</div>
+    <div class="block" draggable="true" data-type="text">Paragraph</div>
+    <div class="block" draggable="true" data-type="image">Image</div>
+    <div class="block" draggable="true" data-type="video">Video</div>
+    <div class="block" draggable="true" data-type="generator">AI Generator</div>
+    <div class="block" draggable="true" data-type="button">Button</div>
+    <div class="block" draggable="true" data-type="spacer">Spacer</div>
+  </aside>
+
+  <section class="canvas-wrap">
+    <div id="canvas" class="canvas">
+      <div class="empty" id="emptyMsg">drag blocks here</div>
+    </div>
+  </section>
+
+  <aside class="inspector">
+    <h3>inspector</h3>
+    <p class="muted" id="noSel">select a block</p>
+    <div id="fields"></div>
+  </aside>
+</main>
+
+<div class="modal" id="modal">
+  <div class="modal-inner">
+    <button class="modal-close" id="modalClose">×</button>
+    <iframe id="previewFrame"></iframe>
+  </div>
+</div>
+
+<script>
+const canvas   = document.getElementById('canvas');
+const emptyMsg = document.getElementById('emptyMsg');
+const inspector= document.getElementById('fields');
+const noSel    = document.getElementById('noSel');
+let selected = null;
+
+/* ---------- drag from palette ---------- */
+document.querySelectorAll('.block').forEach(b => {
+  b.addEventListener('dragstart', e => e.dataTransfer.setData('type', b.dataset.type));
+});
+canvas.addEventListener('dragover', e => { e.preventDefault(); canvas.classList.add('dragover'); });
+canvas.addEventListener('dragleave', () => canvas.classList.remove('dragover'));
+canvas.addEventListener('drop', e => {
+  e.preventDefault(); canvas.classList.remove('dragover');
+  const type = e.dataTransfer.getData('type');
+  if (type) addBlock(type);
+});
+
+/* ---------- block factory ---------- */
+function addBlock(type) {
+  const node = document.createElement('div');
+  node.className = 'node';
+  node.dataset.type = type;
+  node.innerHTML = `<span class="node-label">${type}</span><button class="del" title="remove">×</button>`;
+
+  const body = document.createElement('div');
+  body.className = 'node-body';
+  node.appendChild(body);
+
+  const defaults = {
+    hero:      { heading: 'Your Headline', sub: 'A subtitle goes here.' },
+    heading:   { text: 'Section Heading' },
+    text:      { text: 'Paragraph text. Click to edit in the inspector.' },
+    image:     { src: 'https://picsum.photos/800/400' },
+    video:     { src: '' },
+    generator: { prompt: '', model: 'svd' },
+    button:    { label: 'Click Me', href: '#' },
+    spacer:    { height: '40' }
+  };
+  node.dataset.props = JSON.stringify(defaults[type] || {});
+
+  render(node);
+  canvas.appendChild(node);
+  emptyMsg.style.display = 'none';
+
+  node.querySelector('.del').addEventListener('click', e => {
+    e.stopPropagation();
+    node.remove();
+    if (selected === node) { selected = null; renderInspector(); }
+    if (!canvas.querySelector('.node')) emptyMsg.style.display = 'block';
+  });
+  node.addEventListener('click', e => {
+    if (e.target.classList.contains('del')) return;
+    select(node);
+  });
+  select(node);
+}
+
+/* ---------- render node in canvas ---------- */
+function render(node) {
+  const type = node.dataset.type;
+  const p = JSON.parse(node.dataset.props || '{}');
+  const body = node.querySelector('.node-body');
+  body.innerHTML = '';
+
+  if (type === 'hero') {
+    body.classList.add('hero');
+    body.innerHTML = `<h1>${escape(p.heading || '')}</h1><p>${escape(p.sub || '')}</p>`;
+  } else if (type === 'heading') {
+    body.innerHTML = `<h1>${escape(p.text || '')}</h1>`;
+  } else if (type === 'text') {
+    body.innerHTML = `<p>${escape(p.text || '')}</p>`;
+  } else if (type === 'image') {
+    body.innerHTML = `<img src="${p.src || ''}" alt="">`;
+  } else if (type === 'video') {
+    body.innerHTML = p.src ? `<video src="${p.src}" controls></video>`
+                           : `<p style="color:#55556a">no video src — set one in inspector</p>`;
+  } else if (type === 'generator') {
+    body.innerHTML = `
+      <div style="padding:14px;background:rgba(88,101,242,.08);border-radius:10px;border:1px solid rgba(88,101,242,.3)">
+        <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#b9c0ff;margin-bottom:8px">AI Video Generator</div>
+        <div style="background:#0a0a12;border-radius:8px;padding:10px;font-size:13px;color:${p.prompt ? '#eaeaf2' : '#55556a'}">${escape(p.prompt || 'prompt will show here')}</div>
+        <div style="margin-top:8px;display:inline-block;padding:8px 16px;border-radius:8px;background:linear-gradient(135deg,#5865F2,#EB459E);color:#fff;font-weight:600;font-size:13px">Generate</div>
+      </div>`;
+  } else if (type === 'button') {
+    body.innerHTML = `<span class="btn-mock">${escape(p.label || '')}</span>`;
+  } else if (type === 'spacer') {
+    body.style.height = (p.height || 40) + 'px';
+    body.style.padding = '0';
+    body.innerHTML = '';
+  }
+}
+
+/* ---------- select + inspector ---------- */
+function select(node) {
+  if (selected) selected.classList.remove('selected');
+  selected = node;
+  node.classList.add('selected');
+  renderInspector();
+}
+
+function renderInspector() {
+  if (!selected) { noSel.style.display = 'block'; inspector.innerHTML = ''; return; }
+  noSel.style.display = 'none';
+  const type = selected.dataset.type;
+  const p = JSON.parse(selected.dataset.props || '{}');
+  const schemas = {
+    hero:      [['heading', 'text'], ['sub', 'text']],
+    heading:   [['text', 'text']],
+    text:      [['text', 'textarea']],
+    image:     [['src', 'text']],
+    video:     [['src', 'text']],
+    generator: [['prompt', 'textarea'], ['model', 'select']],
+    button:    [['label', 'text'], ['href', 'text']],
+    spacer:    [['height', 'text']]
+  };
+  const fields = schemas[type] || [];
+  inspector.innerHTML = '';
+  fields.forEach(([key, kind]) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    const lab = document.createElement('label');
+    lab.textContent = key;
+    let inp;
+    if (kind === 'textarea') inp = document.createElement('textarea');
+    else if (kind === 'select') {
+      inp = document.createElement('select');
+      ['svd', 'animatediff', 'kling'].forEach(m => {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = m;
+        if ((p[key] || 'svd') === m) o.selected = true;
+        inp.appendChild(o);
+      });
+    } else inp = document.createElement('input');
+    inp.value = p[key] || '';
+    inp.addEventListener('input', () => {
+      const next = JSON.parse(selected.dataset.props || '{}');
+      next[key] = inp.value;
+      selected.dataset.props = JSON.stringify(next);
+      render(selected);
+    });
+    wrap.appendChild(lab); wrap.appendChild(inp);
+    inspector.appendChild(wrap);
+  });
+}
+
+/* ---------- export ---------- */
+function exportHTML() {
+  const nodes = [...canvas.querySelectorAll('.node')];
+  const body = nodes.map(n => {
+    const type = n.dataset.type;
+    const p = JSON.parse(n.dataset.props || '{}');
+    if (type === 'hero')      return `<section class="hero"><h1>${escape(p.heading || '')}</h1><p>${escape(p.sub || '')}</p></section>`;
+    if (type === 'heading')   return `<h2>${escape(p.text || '')}</h2>`;
+    if (type === 'text')      return `<p>${escape(p.text || '')}</p>`;
+    if (type === 'image')     return `<img src="${p.src || ''}" alt="">`;
+    if (type === 'video')     return p.src ? `<video src="${p.src}" controls></video>` : '';
+    if (type === 'button')    return `<a href="${p.href || '#'}" class="btn">${escape(p.label || '')}</a>`;
+    if (type === 'spacer')    return `<div style="height:${p.height || 40}px"></div>`;
+    if (type === 'generator') return generatorBlock(p);
+    return '';
+  }).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Site</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #06060a; color: #eaeaf2; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.wrap { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+.hero { text-align: center; padding: 60px 20px; }
+.hero h1 { font-size: 44px; margin: 0 0 12px; background: linear-gradient(90deg,#b9c0ff,#ffb9ec); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.hero p { color: #a0a0b5; font-size: 17px; margin: 0; }
+h2 { font-size: 26px; margin: 40px 0 12px; }
+p { color: #c0c0d0; line-height: 1.6; font-size: 15px; }
+img, video { max-width: 100%; border-radius: 10px; margin: 12px 0; display: block; }
+.btn { display: inline-block; padding: 12px 24px; border-radius: 10px; background: linear-gradient(135deg,#5865F2,#EB459E); color: #fff; text-decoration: none; font-weight: 600; margin: 12px 0; }
+.gen { padding: 18px; background: rgba(88,101,242,.08); border: 1px solid rgba(88,101,242,.3); border-radius: 12px; margin: 24px 0; }
+.gen textarea { width: 100%; background: #0a0a12; border: 1px solid rgba(255,255,255,.1); color: #eaeaf2; padding: 12px; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 70px; outline: none; }
+.gen button { margin-top: 10px; padding: 12px 22px; border-radius: 9px; border: none; cursor: pointer; background: linear-gradient(135deg,#5865F2,#EB459E); color: #fff; font-weight: 700; font-size: 14px; }
+.gen video { margin-top: 14px; }
+.gen .status { margin-top: 10px; font-size: 13px; color: #8a8aa0; }
+.gen .status.err { color: #ED4245; }
+.gen .status.ok { color: #57F287; }
+</style>
+</head>
+<body>
+<div class="wrap">
+${body}
+</div>
+</body>
+</html>`;
+}
+
+function generatorBlock(p) {
+  return `<div class="gen">
+  <textarea class="gen-prompt" placeholder="describe your video...">${escape(p.prompt || '')}</textarea>
+  <select class="gen-model" style="margin-top:8px;width:100%;background:#0a0a12;border:1px solid rgba(255,255,255,.1);color:#eaeaf2;padding:10px;border-radius:8px;font-family:inherit;font-size:14px;">
+    <option value="svd"${p.model === 'svd' ? ' selected' : ''}>Stable Video Diffusion</option>
+    <option value="animatediff"${p.model === 'animatediff' ? ' selected' : ''}>AnimateDiff</option>
+    <option value="kling"${p.model === 'kling' ? ' selected' : ''}>Kling 1.6</option>
+  </select>
+  <button onclick="(function(b){
+    var box = b.parentElement;
+    var prompt = box.querySelector('.gen-prompt').value.trim();
+    var model = box.querySelector('.gen-model').value;
+    var st = box.querySelector('.status');
+    if (!prompt) { st.className='status err'; st.textContent='prompt required'; return; }
+    st.className='status'; st.textContent='sending...';
+    b.disabled = true;
+    fetch('http://localhost:3000/api/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ prompt: prompt, model: model })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.error) throw new Error(d.error);
+      st.textContent = 'rendering... (job ' + d.id.slice(0,8) + ')';
+      var iv = setInterval(function(){
+        fetch('http://localhost:3000/api/status/' + d.id)
+          .then(function(r){ return r.json(); })
+          .then(function(s){
+            if (s.status === 'succeeded') {
+              clearInterval(iv);
+              var url = Array.isArray(s.output) ? s.output[0] : s.output;
+              var v = document.createElement('video');
+              v.src = url; v.controls = true; v.playsInline = true;
+              box.appendChild(v);
+              st.className='status ok'; st.textContent='done';
+              b.disabled = false;
+            } else if (s.status === 'failed' || s.status === 'canceled') {
+              clearInterval(iv);
+              st.className='status err'; st.textContent='failed';
+              b.disabled = false;
+            }
+          });
+      }, 3000);
+    })
+    .catch(function(e){ st.className='status err'; st.textContent='error: '+e.message; b.disabled=false; });
+  })(this)">Generate</button>
+  <div class="status"></div>
+</div>`;
+}
+
+/* ---------- preview + export ---------- */
+document.getElementById('previewBtn').addEventListener('click', () => {
+  const html = exportHTML();
+  document.getElementById('previewFrame').srcdoc = html;
+  document.getElementById('modal').classList.add('show');
+});
+document.getElementById('modalClose').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('show');
+  document.getElementById('previewFrame').srcdoc = '';
+});
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([exportHTML()], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'my-site.html';
+  a.click();
+});
+
+/* ---------- helpers ---------- */
+function escape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+</script>
+</body>
+  </html>
